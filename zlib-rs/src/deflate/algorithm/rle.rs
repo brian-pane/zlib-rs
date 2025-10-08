@@ -41,7 +41,7 @@ pub fn deflate_rle(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockStat
             }
 
             assert!(
-                state.strstart - 1 + match_len <= state.window_size - 1,
+                state.strstart - 1 + match_len <= state.window_size as usize - 1,
                 "wild scan"
             );
         }

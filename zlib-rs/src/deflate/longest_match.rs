@@ -131,7 +131,7 @@ fn longest_match_help<const SLOW: bool>(
     let mut scan_end = window[strstart + offset..].as_ptr();
 
     assert!(
-        strstart <= state.window_size.saturating_sub(MIN_LOOKAHEAD),
+        strstart <= (state.window_size as usize).saturating_sub(MIN_LOOKAHEAD),
         "need lookahead"
     );
 
@@ -247,7 +247,7 @@ fn longest_match_help<const SLOW: bool>(
         }
 
         assert!(
-            scan.as_ptr() as usize + len <= window.as_ptr() as usize + (state.window_size - 1),
+            scan.as_ptr() as usize + len <= window.as_ptr() as usize + (state.window_size as usize - 1),
             "wild scan"
         );
 

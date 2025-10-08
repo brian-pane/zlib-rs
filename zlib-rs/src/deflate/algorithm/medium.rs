@@ -102,7 +102,7 @@ pub fn deflate_medium(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
         if !early_exit
             && state.lookahead > MIN_LOOKAHEAD
             && ((current_match.strstart + current_match.match_length) as usize)
-                < (state.window_size - MIN_LOOKAHEAD)
+                < (state.window_size as usize - MIN_LOOKAHEAD)
         {
             state.strstart = (current_match.strstart + current_match.match_length) as usize;
             hash_head = StandardHashCalc::quick_insert_string(state, state.strstart);

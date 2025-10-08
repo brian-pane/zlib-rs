@@ -342,7 +342,7 @@ pub fn init(stream: &mut z_stream, config: DeflateConfig) -> ReturnCode {
         status: Status::Init,
 
         // window
-        w_size,
+        w_size: w_size as u32,
 
         // allocated values
         window,
@@ -400,7 +400,7 @@ pub fn init(stream: &mut z_stream, config: DeflateConfig) -> ReturnCode {
         _cache_line_1: (),
         _cache_line_2: (),
         _cache_line_3: (),
-        _padding_0: [0; 16],
+        _padding_0: [0; 24],
     };
 
     unsafe { state_allocation.as_ptr().write(state) }; // FIXME: write is stable for NonNull since 1.80.0
@@ -449,7 +449,7 @@ pub fn params(stream: &mut DeflateStream, level: i32, strategy: Strategy) -> Ret
         let state = &mut stream.state;
 
         if stream.avail_in != 0
-            || ((state.strstart as isize - state.block_start) + state.lookahead as isize) != 0
+            || ((state.strstart as i32 - state.block_start) + state.lookahead as i32) != 0
         {
             return ReturnCode::BufError;
         }
@@ -506,7 +506,7 @@ pub fn set_dictionary(stream: &mut DeflateStream, mut dictionary: &[u8]) -> Retu
         }
 
         // use the tail
-        dictionary = &dictionary[dictionary.len() - state.w_size..];
+        dictionary = &dictionary[dictionary.len() - state.w_size as usize..];
     }
 
     // insert dictionary into window and hash
@@ -604,7 +604,7 @@ pub fn copy<'a>(
 
     let window = source_state.window.clone_in(alloc);
 
-    let prev = alloc.allocate_slice_raw::<u16>(source_state.w_size);
+    let prev = alloc.allocate_slice_raw::<u16>(source_state.w_size as _);
     let head = alloc.allocate_raw::<[u16; HASH_SIZE]>();
 
     let pending = source_state.bit_writer.pending.clone_in(alloc);
@@ -632,7 +632,7 @@ pub fn copy<'a>(
                     alloc.deallocate(head.as_ptr(), HASH_SIZE)
                 }
                 if let Some(prev) = prev {
-                    alloc.deallocate(prev.as_ptr(), source_state.w_size)
+                    alloc.deallocate(prev.as_ptr(), source_state.w_size as _)
                 }
                 if let Some(mut window) = window {
                     window.drop_in(alloc);
@@ -801,7 +801,7 @@ fn reset_keep(stream: &mut DeflateStream) -> ReturnCode {
 }
 
 fn lm_init(state: &mut State) {
-    state.window_size = 2 * state.w_size;
+    state.window_size = (2 * state.w_size as usize) as _;
 
     // zlib uses CLEAR_HASH here
     crate::cfg_select!(
@@ -1282,7 +1282,9 @@ pub(crate) struct State<'a> {
     pub(crate) strstart: usize,  /* start of string to insert */
 
     pub(crate) window: Window<'a>,
-    pub(crate) w_size: usize, /* LZ77 window size (32K by default) */
+    pub(crate) w_size: u32,      /* LZ77 window size (32K by default) */
+    /// Actual size of window: 2*w_size, except when the user input buffer is directly used as sliding window.
+    pub(crate) window_size: u32,
 
     pub(crate) lookahead: usize, /* number of valid bytes ahead in window */
 
@@ -1325,7 +1327,7 @@ pub(crate) struct State<'a> {
 
     /// Window position at the beginning of the current output block. Gets
     /// negative when the window is moved backwards.
-    pub(crate) block_start: isize,
+    pub(crate) block_start: i32,
 
     pub(crate) sym_buf: SymBuf<'a>,
 
@@ -1350,15 +1352,13 @@ pub(crate) struct State<'a> {
     ///   - I can't count above 4
     lit_bufsize: usize,
 
-    /// Actual size of window: 2*w_size, except when the user input buffer is directly used as sliding window.
-    pub(crate) window_size: usize,
-
     bit_writer: BitWriter<'a>,
-
-    _cache_line_2: (),
 
     /// bit length of current block with optimal trees
     opt_len: usize,
+
+    _cache_line_2: (),
+
     /// bit length of current block with static trees
     static_len: usize,
 
@@ -1371,7 +1371,7 @@ pub(crate) struct State<'a> {
     gzhead: Option<&'a mut gz_header>,
     gzindex: usize,
 
-    _padding_0: [u8; 16],
+    _padding_0: [u8; 24],
 
     _cache_line_3: (),
 
@@ -1424,11 +1424,11 @@ impl<'a> State<'a> {
     }
 
     pub(crate) fn w_mask(&self) -> usize {
-        self.w_size - 1
+        self.w_size as usize - 1
     }
 
     pub(crate) fn max_dist(&self) -> usize {
-        self.w_size - MIN_LOOKAHEAD
+        self.w_size as usize - MIN_LOOKAHEAD
     }
 
     // TODO untangle this mess! zlib uses the same field differently based on compression level
@@ -1770,11 +1770,11 @@ pub(crate) const MIN_LOOKAHEAD: usize = STD_MAX_MATCH + STD_MIN_MATCH + 1;
 pub(crate) fn fill_window(stream: &mut DeflateStream) {
     debug_assert!(stream.state.lookahead < MIN_LOOKAHEAD);
 
-    let wsize = stream.state.w_size;
+    let wsize = stream.state.w_size as usize;
 
     loop {
         let state = &mut *stream.state;
-        let mut more = state.window_size - state.lookahead - state.strstart;
+        let mut more = state.window_size as usize - state.lookahead - state.strstart;
 
         // If the window is almost full and there is insufficient lookahead,
         // move the upper half to the lower one to make room in the upper half.
@@ -1789,7 +1789,7 @@ pub(crate) fn fill_window(stream: &mut DeflateStream) {
             }
 
             state.strstart -= wsize; /* we now have strstart >= MAX_DIST */
-            state.block_start -= wsize as isize;
+            state.block_start -= wsize as i32;
             state.insert = Ord::min(state.insert, state.strstart);
 
             self::slide_hash::slide_hash(state);
@@ -1847,7 +1847,7 @@ pub(crate) fn fill_window(stream: &mut DeflateStream) {
     }
 
     assert!(
-        stream.state.strstart <= stream.state.window_size - MIN_LOOKAHEAD,
+        stream.state.strstart <= stream.state.window_size as usize - MIN_LOOKAHEAD,
         "not enough room for search"
     );
 }
@@ -2429,11 +2429,11 @@ pub(crate) fn flush_block_only(stream: &mut DeflateStream, is_last: bool) {
     zng_tr_flush_block(
         stream,
         (stream.state.block_start >= 0).then_some(stream.state.block_start as usize),
-        (stream.state.strstart as isize - stream.state.block_start) as u32,
+        (stream.state.strstart as i32 - stream.state.block_start) as u32,
         is_last,
     );
 
-    stream.state.block_start = stream.state.strstart as isize;
+    stream.state.block_start = stream.state.strstart as _;
     flush_pending(stream)
 }
 
@@ -3250,7 +3250,7 @@ pub fn bound(stream: Option<&mut DeflateStream>, source_len: usize) -> usize {
 /// The `dictionary` must have enough space for the dictionary.
 pub unsafe fn get_dictionary(stream: &DeflateStream<'_>, dictionary: *mut u8) -> usize {
     let s = &stream.state;
-    let len = Ord::min(s.strstart + s.lookahead, s.w_size);
+    let len = Ord::min(s.strstart + s.lookahead, s.w_size as _);
 
     if !dictionary.is_null() && len > 0 {
         unsafe {

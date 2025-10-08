@@ -19,7 +19,7 @@ pub fn deflate_quick(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockSt
                     .bit_writer
                     .emit_end_block_and_align(&StaticTreeDesc::L.static_tree, $last);
                 state.block_open = 0;
-                state.block_start = state.strstart as isize;
+                state.block_start = state.strstart as _;
                 flush_pending(stream);
                 #[allow(unused_assignments)]
                 {
@@ -39,7 +39,7 @@ pub fn deflate_quick(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockSt
         ($last:expr) => {
             state.bit_writer.emit_tree(BlockType::StaticTrees, $last);
             state.block_open = 1 + $last as u8;
-            state.block_start = state.strstart as isize;
+            state.block_start = state.strstart as _;
         };
     }
 

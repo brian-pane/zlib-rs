@@ -11,7 +11,7 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
     // large input and output buffers, the stored block size will be larger.
     let min_block = Ord::min(
         stream.state.bit_writer.pending.capacity() - 5,
-        stream.state.w_size,
+        stream.state.w_size as _,
     );
 
     // Copy as many min_block or larger stored blocks directly to next_out as
@@ -34,7 +34,7 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
             break;
         }
 
-        let left = stream.state.strstart as isize - stream.state.block_start;
+        let left = stream.state.strstart as i32 - stream.state.block_start;
         let left = Ord::max(0, left) as usize;
 
         have = stream.avail_out as usize - have;
@@ -94,7 +94,7 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
             stream.next_out = stream.next_out.wrapping_add(left);
             stream.avail_out = stream.avail_out.wrapping_sub(left as _);
             stream.total_out = stream.total_out.wrapping_add(left as _);
-            stream.state.block_start += left as isize;
+            stream.state.block_start += left as i32;
             len -= left;
         }
 
@@ -118,30 +118,30 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
     if used > 0 {
         let state = &mut stream.state;
         // If any input was used, then no unused input remains in the window, therefore s->block_start == s->strstart.
-        if used as usize >= state.w_size {
+        if used as usize >= state.w_size as _ {
             /* supplant the previous history */
             state.matches = 2; /* clear hash */
 
             // SAFETY: we've advanced the next_in pointer at minimum w_size bytes
             // read_buf_direct_copy(), so we are able to backtrack that number of bytes.
-            let src = stream.next_in.wrapping_sub(state.w_size);
-            unsafe { state.window.copy_and_initialize(0..state.w_size, src) };
+            let src = stream.next_in.wrapping_sub(state.w_size as _);
+            unsafe { state.window.copy_and_initialize(0..state.w_size as usize, src) };
 
-            state.strstart = state.w_size;
+            state.strstart = state.w_size as _;
             state.insert = state.strstart;
         } else {
-            if state.window_size - state.strstart <= used as usize {
+            if state.window_size as usize - state.strstart <= used as usize {
                 /* Slide the window down. */
-                state.strstart -= state.w_size;
+                state.strstart -= state.w_size as usize;
 
                 // make sure we don't copy uninitialized bytes. While we discard the first lower w_size
                 // bytes, it is not guaranteed that the upper w_size bytes are all initialized
-                let copy = Ord::min(state.strstart, state.window.filled().len() - state.w_size);
+                let copy = Ord::min(state.strstart, state.window.filled().len() - state.w_size as usize);
 
                 state
                     .window
                     .filled_mut()
-                    .copy_within(state.w_size..state.w_size + copy, 0);
+                    .copy_within(state.w_size as usize..state.w_size as usize + copy, 0);
 
                 if state.matches < 2 {
                     state.matches += 1; /* add a pending slide_hash() */
@@ -156,9 +156,9 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
             unsafe { state.window.copy_and_initialize(dst, src) };
 
             state.strstart += used as usize;
-            state.insert += Ord::min(used as usize, state.w_size - state.insert);
+            state.insert += Ord::min(used as usize, state.w_size as usize - state.insert);
         }
-        state.block_start = state.strstart as isize;
+        state.block_start = state.strstart as _;
     }
 
     if last {
@@ -169,34 +169,34 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
     if flush != DeflateFlush::NoFlush
         && flush != DeflateFlush::Finish
         && stream.avail_in == 0
-        && stream.state.strstart as isize == stream.state.block_start
+        && stream.state.strstart as i32 == stream.state.block_start
     {
         return BlockState::BlockDone;
     }
 
     // Fill the window with any remaining input
-    let mut have = stream.state.window_size - stream.state.strstart;
-    if stream.avail_in as usize > have && stream.state.block_start >= stream.state.w_size as isize {
+    let mut have = stream.state.window_size as usize - stream.state.strstart;
+    if stream.avail_in as usize > have && stream.state.block_start >= stream.state.w_size as _ {
         // slide the window down
         let state = &mut stream.state;
-        state.block_start -= state.w_size as isize;
-        state.strstart -= state.w_size;
+        state.block_start -= state.w_size as i32;
+        state.strstart -= state.w_size as usize;
 
         // make sure we don't copy uninitialized bytes. While we discard the first lower w_size
         // bytes, it is not guaranteed that the upper w_size bytes are all initialized
-        let copy = Ord::min(state.strstart, state.window.filled().len() - state.w_size);
+        let copy = Ord::min(state.strstart, state.window.filled().len() - state.w_size as usize);
 
         state
             .window
             .filled_mut()
-            .copy_within(state.w_size..state.w_size + copy, 0);
+            .copy_within(state.w_size as usize..state.w_size as usize + copy, 0);
 
         if state.matches < 2 {
             // add a pending slide_hash
             state.matches += 1;
         }
 
-        have += state.w_size; // more space now
+        have += state.w_size as usize; // more space now
         state.insert = Ord::min(state.insert, state.strstart);
     }
 
@@ -206,7 +206,7 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
 
         let state = &mut stream.state;
         state.strstart += have;
-        state.insert += Ord::min(have, state.w_size - state.insert);
+        state.insert += Ord::min(have, state.w_size as usize - state.insert);
     }
 
     // There was not enough avail_out to write a complete worthy or flushed
@@ -220,14 +220,14 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
 
     // maximum stored block length that will fit in pending:
     let have = Ord::min(state.bit_writer.pending.capacity() - have, MAX_STORED);
-    let min_block = Ord::min(have, state.w_size);
-    let left = state.strstart as isize - state.block_start;
+    let min_block = Ord::min(have, state.w_size as usize);
+    let left = state.strstart as i32 - state.block_start;
 
-    if left >= min_block as isize
+    if left >= min_block as _
         || ((left > 0 || flush == DeflateFlush::Finish)
             && flush != DeflateFlush::NoFlush
             && stream.avail_in == 0
-            && left <= have as isize)
+            && left <= have as _)
     {
         let len = Ord::min(left as usize, have); // TODO wrapping?
         last = flush == DeflateFlush::Finish && stream.avail_in == 0 && len == (left as usize);
@@ -235,7 +235,7 @@ pub fn deflate_stored(stream: &mut DeflateStream, flush: DeflateFlush) -> BlockS
         let range = state.block_start as usize..state.block_start as usize + len;
         zng_tr_stored_block(state, range, last);
 
-        state.block_start += len as isize;
+        state.block_start += len as i32;
         flush_pending(stream);
     }
 
