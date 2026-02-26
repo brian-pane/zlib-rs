@@ -3014,7 +3014,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     fn test_gz_error() {
         // gzerror(null) should return null.
         assert!(unsafe { gzerror(ptr::null_mut(), ptr::null_mut()) }.is_null());
@@ -3078,7 +3081,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     fn test_gzclearerr() {
         // gzclearerr on a null file handle should return quietly.
         unsafe { gzclearerr(ptr::null_mut()) };
@@ -3153,7 +3159,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     fn test_gzeof() {
         // gzeof on a null file handle should return false.
         assert_eq!(unsafe { gzeof(ptr::null_mut()) }, 0);
@@ -3189,7 +3198,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     // Open a gzip file for reading. gzdirect should return 0.
     fn test_gzdirect_gzip_file() {
         let file = unsafe {
@@ -3228,7 +3240,10 @@ mod tests {
 
     // Open a non-gzip file for reading. gzdirect should return 1.
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     fn test_gzdirect_non_gzip_file() {
         let file = unsafe {
             gzopen(
@@ -3288,7 +3303,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(target_os = "linux"), ignore = "lseek is not implemented")]
+    #[cfg_attr(
+        not(any(target_os = "linux", target_os = "macos")),
+        ignore = "lseek is not implemented"
+    )]
     fn test_gzbuffer() {
         // gzbuffer on a null file handle should return -1.
         assert_eq!(unsafe { gzbuffer(ptr::null_mut(), 1024) }, -1);
